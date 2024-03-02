@@ -1,0 +1,8 @@
+## Interface: 11200
+## Title: Loot Res
+## Author: Xerron/Er
+## Version: 0.1
+## Notes: Addon to help with loot reservation system
+## SavedVariables: LOOTRES_RESERVES, LOOT_HISTORY, TIME_TO_VOTE, TIME_TO_LINK, LOOT_RES_LOOT_HISTORY
+ChatThrottleLib\ChatThrottleLib.lua
+LootRes.xml
