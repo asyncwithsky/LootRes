@@ -47,7 +47,7 @@ LootRes:SetScript("OnShow", function()
             end
         end
 
-        if itemRarity >= 3 then
+        if itemRarity >= 2 then
 
             GameTooltip:AddLine("Soft-Reserved List (" .. reservedNumber .. ")")
 
