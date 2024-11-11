@@ -3,16 +3,15 @@ This is an edit and reupload of Cosminpop's LootRes addon with focus on compatab
 Changes:
 - LootLC component fully removed.
 - Rolling functionallity of addon removed.
-- Made a small improvement to the creation of table for reserves. 2SR+ now properly works, player's second SR has an "S" appended to the end.
+- ~~Made a small improvement to the creation of table for reserves. 2SR+ now properly works, player's second SR has an "S" appended to the end.~~
 
 Forked Changes:
 - Added SR+ system for LootRes.
-- Fixed Duplicate SR, Triple SR, and so on.
 - Added SR looted history.
 - Added SR announcement when any player type in the chat: "[Item] SR".
+- Fixed Duplicate SR, Double SR, and so on.
 
 Commands for the addon:
-
 ```lua
 /lootres load -- Load parsed data from raidres.fly.dev
 /lootres delete -- Delete loaded SR data from LootRes
@@ -28,4 +27,15 @@ Commands for the addon:
 /lootres clear PlayerName -- Remove SR for Player
 ```
 
--- Остальные команды работают некорректно, т.к. аддон кастрированная версия оригинального LootRes и не все фичи были перенесены
+Usage for SR (get your parsed data from raidres.fly.dev):
+```lua
+/lootres load
+/lootres reset
+```
+
+
+Usage for SR+, needed my chrome extension [https://github.com/asyncwithsky/RaidRes-extractor]:
+```lua
+/lootres load
+/lootres reset
+```
