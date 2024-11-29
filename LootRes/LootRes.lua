@@ -7,6 +7,7 @@ LootRes:RegisterEvent("ADDON_LOADED")
 LootRes:RegisterEvent("CHAT_MSG_LOOT")
 LootRes:RegisterEvent("CHAT_MSG_RAID")
 LootRes:RegisterEvent("CHAT_MSG_RAID_LEADER")
+LootRes:RegisterEvent("CHAT_MSG_RAID_WARNING")
 
 local rollsOpen = false
 local rollers = {}
@@ -35,6 +36,10 @@ if ANNOUNCE_FLAG == nil then
 	ANNOUNCE_FLAG = 1
 end
 
+if ROLL_FORMULA_FLAG == nil then
+	ROLL_FORMULA_FLAG = 1
+end
+
 if LOOT_RES_LOOT_HISTORY == nil then
 	LOOT_RES_LOOT_HISTORY = {}
 end
@@ -43,6 +48,9 @@ if LOOTRES_RESERVES == nil then
 	LOOTRES_RESERVES = {}
 end
 
+if GUILD_TABLE == nil or GUILD_TABLE then
+	GUILD_TABLE = {}
+end
 
 SLASH_LOOTRES1 = "/lootres"
 SlashCmdList["LOOTRES"] = function(cmd)
@@ -53,8 +61,9 @@ SlashCmdList["LOOTRES"] = function(cmd)
         if cmd == 'print' then
             LootRes:PrintReserves()
 		elseif cmd == 'raidprint' then
-			lrprint('WTF')
 			LootRes:PrintRaidReserves()
+		elseif cmd == 'raidprint2' then
+			LootRes:PrintRaidReserves2()
         elseif cmd == 'load' then
             getglobal('LootResLoadFromTextTextBox'):SetText("")
             getglobal('LootResLoadFromText'):Show()
@@ -114,6 +123,26 @@ SlashCmdList["LOOTRES"] = function(cmd)
 			end
 			getglobal('LootResExcelTextBox'):SetText(lootHistoryMessage)
             getglobal('LootResExcel'):Show()
+		elseif cmd == 'guildinfo' then
+			GUILD_TABLE = GUILD_TABLE and wipe(GUILD_TABLE) or {}
+			for i=0,10000 do
+				name, rankName, rankIndex, level, class, zone, note, 
+				officernote, online, status, classFileName, 
+				achievementPoints, achievementRank, isMobile, isSoREligible, standingID = GetGuildRosterInfo(i)
+				if name then
+					if rankIndex == 0 or rankIndex == 1 or rankIndex == 2 then
+						rank = 4
+					elseif rankIndex == 3 then
+						rank = 3
+					elseif rankIndex == 4 then
+						rank = 2
+					elseif rankIndex == 5 or rankIndex == 6 or rankIndex == 7 or rankIndex == 8 or rankIndex == 9 then
+						rank = 1
+					end
+					tinsert(GUILD_TABLE, strjoin(",", name, class, rankName))
+				end
+			end
+			lrprint('Total players loaded in GUILD_TABLE: '..table.getn(GUILD_TABLE)) 
 		elseif cmd == 'reset' then
             LOOT_RES_LOOT_HISTORY = {}
             lrprint('Looted History Reset.')
@@ -133,8 +162,15 @@ SlashCmdList["LOOTRES"] = function(cmd)
 			elseif Num == 1 then
 				ANNOUNCE_FLAG = Num
 				lrprint('SR list will be announced when someone type: "[ItemLink] SR" in the raid chat.')
+			elseif W[2] == '+' then
+				ROLL_FORMULA_FLAG = not ROLL_FORMULA_FLAG
+				if ROLL_FORMULA_FLAG then
+					lrprint('SR list will be announced with formula according to Rank of the player.')
+				else 
+					lrprint('SR list will be not announced with formula according to Rank of the player.')
+				end
 			else
-				lrprint("Provided wrong number: " .. Num .. ". Try 1 or 0")
+				lrprint("Provided wrong number: " .. Num .. ". Try 1 or 0 or +")
 			end
 		elseif string.find(cmd, 'view', 1, true) then
 			local W = string.split(cmd, ' ')
@@ -172,7 +208,9 @@ SlashCmdList["LOOTRES"] = function(cmd)
 			lrprint('/lootres delete - Delete all reserves from LootRes.')
 			lrprint('/lootres print - Show reserved items.')
 			lrprint('/lootres raidprint - Show reserved items for Raid.')
+			lrprint('/lootres raidprint2 - Show reserved items for Raid. (reversed function)')
 			lrprint('/lootres announce 1 or 0 - Enable/Disable announce SR feature for raid chat.')
+			lrprint('/lootres announce + - Enable/Disable announce SR with roll formulas feature for raid chat.')
 			lrprint('/lootres log - View Loot History.')
 			lrprint('/lootres raidlog - Show Loot History for Raid.')
 			lrprint('/lootres excel - View textbox with Loot History.')
@@ -308,8 +346,21 @@ function LootRes:AnnounceSR(arg1)
 	local playersInRaid = {}
 	for i = 1, MAX_RAID_MEMBERS do
 		local name = GetRaidRosterInfo(i)
+		local guildName, guildRankName, guildRankIndex = GetGuildInfo('raid'..i)
 		if name then
-			playersInRaid[string.lower(name)] = true
+			local rank = 0
+			if guildName == 'CuHuu TpakTop' then
+				if guildRankIndex == 0 or guildRankIndex == 1 or guildRankIndex == 2 then
+					rank = 4
+				elseif guildRankIndex == 3 then
+					rank = 3
+				elseif guildRankIndex == 4 then
+					rank = 2
+				elseif guildRankIndex == 5 or guildRankIndex == 6 or guildRankIndex == 7 or guildRankIndex == 8 or guildRankIndex == 9 then
+					rank = 1
+				end
+			end
+			playersInRaid[string.lower(name)] = rank
 		end
 	end
 
@@ -328,9 +379,12 @@ function LootRes:AnnounceSR(arg1)
 						priority = tonumber(string.sub(playerData.comment, 2)) or 0
 					end
 
-					local playerEntry = {name = playerNameSR, priority = priority}
-
-					if playersInRaid[string.lower(playerNameSR)] then
+					local playerEntry = {name = playerNameSR, priority = priority, rank = nil}
+					-- local playerEntry = {name = playerNameSR, priority = priority}
+					-- print(playersInRaid[string.lower(playerNameSR)])
+					local playerInRaid = playersInRaid[string.lower(playerNameSR)]
+					if playerInRaid ~= nil then
+						playerEntry.rank = playerInRaid
 						table.insert(actualPlayers, playerEntry)
 					else
 						table.insert(fakePlayers, playerEntry)
@@ -340,36 +394,31 @@ function LootRes:AnnounceSR(arg1)
 		end
 	end
 	
-	-- actualPlayers = fakePlayers
-	-- fakePlayers = {}
 
-	table.sort(actualPlayers, function(a, b)
-		if a.priority and b.priority then
-			return a.priority > b.priority
-		elseif a.priority then
-			return true
-		elseif b.priority then
-			return false
-		else
-			return false
-		end
-	end)
-	table.sort(fakePlayers, function(a, b)
-		if a.priority and b.priority then
-			return a.priority > b.priority
-		elseif a.priority then
-			return true
-		elseif b.priority then
-			return false
-		else
-			return false
-		end
-	end)
+	table.sort(actualPlayers, LootRes.RankSort)
+	table.sort(fakePlayers, LootRes.RankSort)
 
 	local actualPlayerList = ""
 	for _, player in ipairs(actualPlayers) do
+		player.name = player.name .. LootRes.arabicToRoman(player.rank)
 		if player.priority and player.priority > 0 then
-			actualPlayerList = actualPlayerList .. player.name .. " (+" .. player.priority .. "), "
+			if not ROLL_FORMULA_FLAG then
+				actualPlayerList = actualPlayerList .. player.name .. " (+" .. player.priority .. "), "
+			else
+				formula = ''
+			    if player.rank == 4 then
+					roll = 13*player.priority
+					formula = '/roll '..tostring(roll+1)..'-'..tostring(roll+100)
+				elseif player.rank == 3 then
+					roll = 10*player.priority
+					formula = '/roll '..tostring(roll+1)..'-'..tostring(roll+100)
+				end
+				if string.len(formula) > 0 then
+					actualPlayerList = actualPlayerList .. player.name .. " (+" .. player.priority .. ", " .. formula .. "), "
+				else
+					actualPlayerList = actualPlayerList .. player.name .. " (+" .. player.priority .. "), "
+				end
+			end
 		else
 			actualPlayerList = actualPlayerList .. player.name .. ", "
 		end
@@ -380,6 +429,7 @@ function LootRes:AnnounceSR(arg1)
 	
 	local fakePlayerList = ""
 	for _, player in ipairs(fakePlayers) do
+		player.name = player.name .. LootRes.arabicToRoman(player.rank)
 		if player.priority and player.priority > 0 then
 			fakePlayerList = fakePlayerList .. player.name .. " (+" .. player.priority .. "), "
 		else
@@ -496,7 +546,6 @@ function SendChatSplitMessage(msg, chatType, n, delimeter)
     local maxMessageLength = n or 255
     local parts = {}
 
-    -- Устанавливаем разделитель, по умолчанию запятая
     delimeter = delimeter or ","
 
     local startPos = 1
@@ -514,8 +563,8 @@ function SendChatSplitMessage(msg, chatType, n, delimeter)
     local messagePart = ""
 
     for i, part in ipairs(parts) do
-        part = string.gsub(part, "^%s+", "")  -- Убираем пробелы в начале
-        part = part .. delimeter .. " "       -- Добавляем разделитель
+        part = string.gsub(part, "^%s+", "")
+        part = part .. delimeter .. " "
 
         if string.len(messagePart) + string.len(part) > maxMessageLength then
             messagePart = string.gsub(messagePart, delimeter .. "%s*$", " ->")
@@ -531,7 +580,6 @@ function SendChatSplitMessage(msg, chatType, n, delimeter)
     end
 
     if string.len(messagePart) > 0 then
-        -- Заменяем конечный разделитель на точку
         messagePart = string.gsub(messagePart, delimeter .. "[%s]*$", ".")
         SendChatMessage(messagePart, chatType)
     end
@@ -695,6 +743,83 @@ function LootRes:PrintRaidReserves()
 	end
 end
 
+
+function LootRes:PrintRaidReserves2()
+    local playersInRaid = {}
+    for i = 1, MAX_RAID_MEMBERS do
+        local name = GetRaidRosterInfo(i)
+        local guildName, guildRankName, guildRankIndex = GetGuildInfo('raid'..i)
+        if name then
+            local rank = 0
+            if guildName == 'CuHuu TpakTop' then
+                if guildRankIndex == 0 or guildRankIndex == 1 or guildRankIndex == 2 then
+                    rank = 4
+                elseif guildRankIndex == 3 then
+                    rank = 3
+                elseif guildRankIndex == 4 then
+                    rank = 2
+                elseif guildRankIndex >= 5 and guildRankIndex <= 9 then
+                    rank = 1
+                end
+            end
+            playersInRaid[string.lower(name)] = rank
+        end
+    end
+
+    local itemsToPlayers = {}
+    for playerName, reserveData in pairs(LOOTRES_RESERVES) do
+        if reserveData.items then
+            for _, item in ipairs(reserveData.items) do
+                if not itemsToPlayers[item] then
+                    itemsToPlayers[item] = {}
+                end
+                table.insert(itemsToPlayers[item], {
+                    name = playerName,
+                    rank = playersInRaid[string.lower(playerName)] or 0,
+                    priority = tonumber(string.sub(reserveData.comment or "", 2)) or 0
+                })
+            end
+        end
+    end
+
+    for _, players in pairs(itemsToPlayers) do
+        table.sort(players, function(a, b)
+            if a.rank ~= b.rank then
+                return a.rank > b.rank
+            else
+                return a.priority > b.priority
+            end
+        end)
+    end
+
+    local raidMSG = ""
+    for item, players in pairs(itemsToPlayers) do
+        local playerList = ""
+        for _, playerData in ipairs(players) do
+            local comment = ""
+            if playerData.priority > 0 then
+                comment = " (+" .. playerData.priority .. ")"
+            end
+			playerName = playerData.name .. LootRes.arabicToRoman(playerData.rank)
+            playerList = playerList .. playerName .. comment .. ", "
+        end
+
+        if string.len(playerList) > 0 then
+            playerList = string.sub(playerList, 1, -3)
+        end
+
+        raidMSG = raidMSG .. "[" .. item .. "]: " .. playerList .. " || "
+    end
+
+    if string.len(raidMSG) > 0 then
+        raidMSG = string.sub(raidMSG, 1, -5)
+        SendChatSplitMessage(raidMSG, "RAID", 170, '||')
+    else
+        lrprint('No provided data to print, use </lootres load> to insert data in addon.')
+    end
+end
+
+
 function LootRes:SearchPlayerOrItem(search)
     lrprint("*" .. LootResReplace(search, "search ", "") .. "*")
 end
@@ -798,4 +923,55 @@ function LootRes.countTableEntries(tbl)
         count = count + 1
     end
     return count
+end
+
+
+function LootRes.arabicToRoman(num)
+    local romanNumerals = {
+		[0] = "",
+        [1] = " [I]",
+        [2] = " [II]",
+        [3] = " [III]",
+        [4] = " [IV]",
+        [5] = " [V]",
+        [6] = " [VI]",
+        [7] = " [VII]",
+        [8] = " [VIII]",
+        [9] = " [IX]"
+    }
+    return romanNumerals[num] or ''
+end
+
+function LootRes.RankSort(a, b)
+	if a.rank and b.rank then
+        if a.rank ~= b.rank then
+            return a.rank > b.rank
+        end
+    elseif a.rank then
+        return true
+    elseif b.rank then
+        return false
+    end
+
+    if a.priority and b.priority then
+        return a.priority > b.priority
+    elseif a.priority then
+        return true
+    elseif b.priority then
+        return false
+    else
+        return false
+    end
+end
+
+function LootRes.PriorSort(a, b)
+    if a.priority and b.priority then
+        return a.priority > b.priority
+    elseif a.priority then
+        return true
+    elseif b.priority then
+        return false
+    else
+        return false
+    end
 end
