@@ -186,11 +186,9 @@ function LootResOptions:OnTooltipUpdate()
 	end
 end
 
-function LootResOptions:OnClick()
-	if LootResOptions:IsActive() then
-		LootRes:InsertSRData()
-	else
-		LootResOptions:ToggleActive(true)
+function LootResOptions:OnMouseDown(button)
+	if (button == "LeftButton") then
+	   LootRes:InsertSRData()
 	end
-	self:UpdateTooltip()
 end
+ 
