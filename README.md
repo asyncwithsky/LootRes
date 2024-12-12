@@ -10,6 +10,7 @@ Forked Changes:
 - Added SR looted history.
 - Added SR announcement when any player type in the chat: "[Item] SR".
 - Fixed Duplicate SR, Double SR, and so on.
+- Added MiniMapButton for convient usage of addon.
 
 Commands for the addon:
 ```lua
@@ -22,6 +23,7 @@ Commands for the addon:
 /lootres log -- Print SR looted history
 /lootres raidlog -- Print looted history in the raid
 /lootres reset -- Reset SR looted history
+/lootres test -- Test announce feature with current settings
 /lootres excel -- Show textbox with SR looted history
 /lootres view PlayerName -- View SR for Player
 /lootres clear PlayerName -- Remove SR for Player

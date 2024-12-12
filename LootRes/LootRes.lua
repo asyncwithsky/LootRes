@@ -1,241 +1,98 @@
 
-local LootRes = CreateFrame("Frame", "LootRes", GameTooltip)
-LootRes:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
-LootRes:RegisterEvent("CHAT_MSG_WHISPER")
-LootRes:RegisterEvent("CHAT_MSG_SYSTEM")
-LootRes:RegisterEvent("ADDON_LOADED")
-LootRes:RegisterEvent("CHAT_MSG_LOOT")
-LootRes:RegisterEvent("CHAT_MSG_RAID")
-LootRes:RegisterEvent("CHAT_MSG_RAID_LEADER")
-LootRes:RegisterEvent("CHAT_MSG_RAID_WARNING")
+LootRes = AceLibrary("AceAddon-2.0"):new("AceEvent-2.0", "AceDebug-2.0", "AceModuleCore-2.0", "AceConsole-2.0", "AceDB-2.0", "AceHook-2.1")
+LootRes:RegisterDB("LootResDB")
+LootRes.frame = CreateFrame("Frame", "LootRes", GameTooltip)
 
-local rollsOpen = false
-local rollers = {}
-local maxRoll = 0
-local reservedNames = ""
+function LootRes:OnEnable()
+	LootRes.frame:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+	LootRes.frame:RegisterEvent("CHAT_MSG_WHISPER")
+	LootRes.frame:RegisterEvent("CHAT_MSG_SYSTEM")
+	LootRes.frame:RegisterEvent("ADDON_LOADED")
+	LootRes.frame:RegisterEvent("CHAT_MSG_LOOT")
+	LootRes.frame:RegisterEvent("CHAT_MSG_RAID")
+	LootRes.frame:RegisterEvent("CHAT_MSG_RAID_LEADER")
+	LootRes.frame:RegisterEvent("CHAT_MSG_RAID_WARNING")
+	LootRes.frame:SetScript("OnEvent", LootRes.OnEvent)
+	LootRes.frame:SetScript("OnShow", LootRes.OnShow)
+	LootRes.frame:SetScript("OnHide", LootRes.OnHide)
+	LootRes.lastAnnounce = 0
+	LootRes.guildName = 'CuHuu TpakTop'
+	
+	SLASH_LOOTRES1 = "/lootres"
+	SlashCmdList["LOOTRES"] = function(cmd)
+		if cmd then
+			if string.find(cmd, 'savelast', 1, true) then
+				saveLast(cmd)
+			end
+			if cmd == 'print' then
+				LootRes:PrintReserves()
+			elseif cmd == 'raidprint' then
+				LootRes:PrintRaidReserves()
+			elseif cmd == 'raidprint2' then
+				LootRes:PrintRaidReserves2()
+			elseif cmd == 'raidprint3' then
+				LootRes:PrintRaidReserves3()
+			elseif cmd == 'load' then
+				LootRes:InsertSRData()
+			elseif cmd == 'delete' then
+				LootRes:DeleteSRData()
+			elseif cmd == 'raidlog' or cmd == 'log' then
+				LootRes:ShowHistoryLog(cmd)
+			elseif cmd == 'excel' then
+				LootRes:PrepareExcelTextbox()
+			elseif cmd == 'guildinfo' then
+				LootRes:GetGuildInfo()
+			elseif cmd == 'reset' then
+				LootRes:ResetLootHistory()
+			elseif cmd == 'test' then
+				LootRes:TestAnnounceSR()
+			elseif string.find(cmd, 'announce', 1, true) then
+				LootRes:SetAnnounceOption(cmd)
+			elseif string.find(cmd, 'view', 1, true) then
+				LootRes:ViewSRForPlayer(cmd)
+			elseif string.find(cmd, 'clear', 1, true) then
+				LootRes:ClearSRForPlayer(cmd)
+			else
+				LootRes:Print('Commands for LootRes:')
+				LootRes:Print('/lootres load - Load parsed data from https://raidres.fly.dev/')
+				LootRes:Print('/lootres delete - Delete all reserves from LootRes.')
+				LootRes:Print('/lootres print - Show reserved items.')
+				LootRes:Print('/lootres raidprint - Show reserved items for Raid.')
+				LootRes:Print('/lootres raidprint2 - Show reserved items for Raid. (reversed function)')
+				LootRes:Print('/lootres raidprint3 - Show reserved items for Raid. (with current players only, reversed function)')
+				LootRes:Print('/lootres announce 1 or 0 - Enable/Disable announce SR feature for raid chat.')
+				LootRes:Print('/lootres announce + - Enable/Disable announce SR with roll formulas feature for raid chat.')
+				LootRes:Print('/lootres log - View Loot History.')
+				LootRes:Print('/lootres raidlog - Show Loot History for Raid.')
+				LootRes:Print('/lootres excel - View textbox with Loot History.')
+				LootRes:Print('/lootres reset - Reset Loot History.')
+				LootRes:Print('/lootres view PlayerName - Check looted items for PlayerName.')
+				LootRes:Print('/lootres clear PlayerName - Delete looted history for PlayerName.')
+			end
+		end
+	end
 
-local secondsToRoll = 12
-local T = 1
-local C = secondsToRoll
-local lastRolledItem = ""
-local offspecRoll = false
-
-function lrprint(a)
-    if a == nil then
-        DEFAULT_CHAT_FRAME:AddMessage('|cff69ccf0[LR]|cff0070de:' .. time() .. '|cffffffff attempt to print a nil value.')
-        return false
-    end
-    DEFAULT_CHAT_FRAME:AddMessage("|cff69ccf0[LR] |cffffffff" .. a)
-end
-
-LootRes.Player = ''
-LootRes.Item = ''
-LootRes.Name = ''
-lastAnnounce = 0
-if ANNOUNCE_FLAG == nil then
-	ANNOUNCE_FLAG = 1
-end
-
-if ROLL_FORMULA_FLAG == nil then
-	ROLL_FORMULA_FLAG = 1
-end
-
-if LOOT_RES_LOOT_HISTORY == nil then
-	LOOT_RES_LOOT_HISTORY = {}
-end
-
-if LOOTRES_RESERVES == nil then
-	LOOTRES_RESERVES = {}
+	LootRes:Print('LootRes loaded. View Minimap Icon to access the UI features.')
 end
 
 if GUILD_TABLE == nil or GUILD_TABLE then
 	GUILD_TABLE = {}
 end
 
-SLASH_LOOTRES1 = "/lootres"
-SlashCmdList["LOOTRES"] = function(cmd)
-    if cmd then
-        if string.find(cmd, 'savelast', 1, true) then
-            saveLast(cmd)
-        end
-        if cmd == 'print' then
-            LootRes:PrintReserves()
-		elseif cmd == 'raidprint' then
-			LootRes:PrintRaidReserves()
-		elseif cmd == 'raidprint2' then
-			LootRes:PrintRaidReserves2()
-        elseif cmd == 'load' then
-            getglobal('LootResLoadFromTextTextBox'):SetText("")
-            getglobal('LootResLoadFromText'):Show()
-		elseif cmd == 'raidlog' or cmd == 'log' then
-			lrprint('Showing loot history log:')
-			if not LOOT_RES_LOOT_HISTORY or next(LOOT_RES_LOOT_HISTORY) == nil then
-				lrprint("History of loot is empty.")
-				return
-			end
 
-			local lootHistoryMessage = ""
-
-			for playerName, lootData in next, LOOT_RES_LOOT_HISTORY do
-				if lootData and table.getn(lootData) > 0 then
-					local playerLoot = playerName .. ": "
-
-					for i, lootInfo in ipairs(lootData) do
-						local itemLink = lootInfo.item
-
-						if string.sub(itemLink, -1) == "." then
-							itemLink = string.sub(itemLink, 1, -2)
-						end
-
-						playerLoot = playerLoot .. itemLink .. ' (' .. lootInfo.timestamp .. ')'
-
-						if i < table.getn(lootData) then
-							playerLoot = playerLoot .. ", "
-						end
-					end
-
-					lootHistoryMessage = lootHistoryMessage .. playerLoot .. " & "
-				end
-			end
-	
-			lootHistoryMessage = string.sub(lootHistoryMessage, 1, -4)
-			
-			lrprint(lootHistoryMessage)
-			if cmd == 'raidlog' then
-				SendChatSplitMessage(lootHistoryMessage, "RAID")
-			end
-		elseif cmd == 'excel' then
-			if not LOOT_RES_LOOT_HISTORY or next(LOOT_RES_LOOT_HISTORY) == nil then
-				lrprint("History of loot is empty.")
-				return
-			end
-
-			local lootHistoryMessage = ""
-			local playerLoot = ""
-			for playerName, lootData in next, LOOT_RES_LOOT_HISTORY do
-				if lootData and table.getn(lootData) > 0 then
-					for i, lootInfo in ipairs(lootData) do
-						local startPos, endPos, itemName = string.find(lootInfo.item, "%[(.-)%]")
-						-- playerLoot = playerName .. "," .. itemName .. "," ..lootInfo.timestamp .. ' ' .. date("%d.%m.%Y") .. '\n'
-						lootHistoryMessage = lootHistoryMessage .. playerName .. "," .. itemName .. "," ..lootInfo.timestamp .. "\n"
-					end
-				end
-			end
-			getglobal('LootResExcelTextBox'):SetText(lootHistoryMessage)
-            getglobal('LootResExcel'):Show()
-		elseif cmd == 'guildinfo' then
-			GUILD_TABLE = GUILD_TABLE and wipe(GUILD_TABLE) or {}
-			for i=0,10000 do
-				name, rankName, rankIndex, level, class, zone, note, 
-				officernote, online, status, classFileName, 
-				achievementPoints, achievementRank, isMobile, isSoREligible, standingID = GetGuildRosterInfo(i)
-				if name then
-					if rankIndex == 0 or rankIndex == 1 or rankIndex == 2 then
-						rank = 4
-					elseif rankIndex == 3 then
-						rank = 3
-					elseif rankIndex == 4 then
-						rank = 2
-					elseif rankIndex == 5 or rankIndex == 6 or rankIndex == 7 or rankIndex == 8 or rankIndex == 9 then
-						rank = 1
-					end
-					tinsert(GUILD_TABLE, strjoin(",", name, class, rankName))
-				end
-			end
-			lrprint('Total players loaded in GUILD_TABLE: '..table.getn(GUILD_TABLE)) 
-		elseif cmd == 'reset' then
-            LOOT_RES_LOOT_HISTORY = {}
-            lrprint('Looted History Reset.')
-		elseif cmd == 'delete' then
-            LOOTRES_RESERVES = {}
-            lrprint('All reserves have been deleted.')
-		elseif string.find(cmd, 'announce', 1, true) then
-			local W = string.split(cmd, ' ')
-			if string.len(W[2]) == 0 then
-				lrprint('No value provided. Please write 1 or 0 as parametr.')
-				return
-			end
-			local Num = tonumber(W[2])
-			if Num == 0 then
-				ANNOUNCE_FLAG = Num
-				lrprint("There will be no announce for SR in the raid chat.")
-			elseif Num == 1 then
-				ANNOUNCE_FLAG = Num
-				lrprint('SR list will be announced when someone type: "[ItemLink] SR" in the raid chat.')
-			elseif W[2] == '+' then
-				ROLL_FORMULA_FLAG = not ROLL_FORMULA_FLAG
-				if ROLL_FORMULA_FLAG then
-					lrprint('SR list will be announced with formula according to Rank of the player.')
-				else 
-					lrprint('SR list will be not announced with formula according to Rank of the player.')
-				end
-			else
-				lrprint("Provided wrong number: " .. Num .. ". Try 1 or 0 or +")
-			end
-		elseif string.find(cmd, 'view', 1, true) then
-			local W = string.split(cmd, ' ')
-			local player = W[2]
-			
-			if LOOTRES_RESERVES[player] then
-				local reservedItems = LOOTRES_RESERVES[player].items
-				local comment = LOOTRES_RESERVES[player].comment
-				if table.getn(reservedItems) > 0 then
-					lrprint(player .. ' reserved: ' .. table.concat(reservedItems, ', ') .. (comment and ' (' .. comment .. ')' or ''))
-				else
-					lrprint(player .. ' has no reserved items.')
-				end
-			else
-				lrprint(player .. ' has no reserved items.')
-			end
-			
-			if not LOOT_RES_LOOT_HISTORY[player] then
-				lrprint(player .. ' - nothing looted.')
-			else
-				local lootHistory = {}
-				for _, lootEntry in ipairs(LOOT_RES_LOOT_HISTORY[player]) do
-					table.insert(lootHistory, lootEntry.item .. ' ('.. lootEntry.timestamp .. ')')
-				end
-				lrprint(player .. ' - looted: ' .. table.concat(lootHistory, ', '))
-			end
-        elseif string.find(cmd, 'clear', 1, true) then
-            local W = string.split(cmd, ' ')
-            local player = W[2]
-            LOOT_RES_LOOT_HISTORY[player] = nil
-            lrprint('Cleared ' .. player .. ' ')
-		else
-			lrprint('Commands for LootRes:')
-			lrprint('/lootres load - Load parsed data from https://raidres.fly.dev/')
-			lrprint('/lootres delete - Delete all reserves from LootRes.')
-			lrprint('/lootres print - Show reserved items.')
-			lrprint('/lootres raidprint - Show reserved items for Raid.')
-			lrprint('/lootres raidprint2 - Show reserved items for Raid. (reversed function)')
-			lrprint('/lootres announce 1 or 0 - Enable/Disable announce SR feature for raid chat.')
-			lrprint('/lootres announce + - Enable/Disable announce SR with roll formulas feature for raid chat.')
-			lrprint('/lootres log - View Loot History.')
-			lrprint('/lootres raidlog - Show Loot History for Raid.')
-			lrprint('/lootres excel - View textbox with Loot History.')
-			lrprint('/lootres reset - Reset Loot History.')
-			lrprint('/lootres view PlayerName - Check looted items for PlayerName.')
-			lrprint('/lootres clear PlayerName - Delete looted history for PlayerName.')
-        end
-    end
-end
-
-
-LootRes:SetScript("OnEvent", function()
+function LootRes:OnEvent()
 	-- if event == "CHAT_MSG_RAID" or event == "CHAT_MSG_PARTY" then
 		-- printable = gsub(arg1, "\124", "\124\124");
 		-- print(printable)
 	-- end
-	if (event == "CHAT_MSG_RAID" or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_RAID_WARNING") and (time() - lastAnnounce > 5) then
+	if (event == "CHAT_MSG_RAID" or event == "CHAT_MSG_RAID_LEADER" or event == "CHAT_MSG_RAID_WARNING") and (time() - LootRes.lastAnnounce> 5) then
 		LootRes:AnnounceSR(arg1)
 	elseif event == "CHAT_MSG_LOOT" then
 		LootRes:SaveLootLog(arg1)
 	end
-end)
+end
 
-
-LootRes:SetScript("OnShow", function()
+function LootRes:OnShow()
     local reservedNumber = 0
     local reservedPlayers = {}
 
@@ -245,12 +102,12 @@ LootRes:SetScript("OnShow", function()
         if not itemLink then
             return false
         end
-		if LOOTRES_RESERVES == nil or LootRes.countTableEntries(LOOTRES_RESERVES) == 0 then
+		if LootRes.db.profile.reserves == nil or LootRes.countTableEntries(LootRes.db.profile.reserves) == 0 then
 			return false
 		end 
         local itemName, _, itemRarity = GetItemInfo(itemLink)
 
-        for playerName, playerData in next, LOOTRES_RESERVES do
+        for playerName, playerData in next, LootRes.db.profile.reserves do
             for _, item in next, playerData.items do
                 if string.lower(itemName) == string.lower(item) then
                     reservedNumber = reservedNumber + 1
@@ -289,13 +146,227 @@ LootRes:SetScript("OnShow", function()
 
         GameTooltip:Show()
     end
-end)
+end
 
-LootRes:SetScript("OnHide", function()
+function LootRes:OnHide()
     GameTooltip.itemLink = nil
-end)
+end
 
-function modifyItemLink(itemLink, itemType)
+function LootRes:InsertSRData()
+	if getglobal('LootResLoadFromText'):IsShown() then
+		LootRes:HideWindow()
+		return
+	end
+	getglobal('LootResLoadFromTextTextBox'):SetText("")
+	getglobal('LootResLoadFromText'):Show()
+end
+
+function LootRes:DeleteSRData()
+	LootRes.db.profile.reserves = {}
+	LootRes:Print('SR data has been removed.')
+end
+
+function LootRes:ResetLootHistory()
+	LootRes.db.profile.loot_history = {}
+	LootRes:Print('Looted History Reset.')
+end
+
+function LootRes:TestAnnounceSR()
+	if LootRes.countTableEntries(LootRes.db.profile.reserves) == 0 then
+		LootRes:Print("No SR data is provided for testing.")
+		return
+	end
+	local items = {}
+	local i = 0
+    for playerName, reserveData in pairs(LootRes.db.profile.reserves) do
+        if reserveData.items then
+            for _, item in ipairs(reserveData.items) do
+                if not items[item] then
+                    items[item] = i
+					i = i + 1
+                end
+            end
+        end
+    end
+	
+	rand = random(1, i)
+	j = 1
+	local itemPattrern = ''
+	for item, _ in next, items do
+		if rand == j then
+			ritem = '|cff8fce00|Hitem:19019:::::::::::::::|h['..item..']|h|r'
+			break
+		end
+		j = j + 1
+	end
+	arg1 = "SR "..ritem
+	LootRes:Print('Testing SR announcement for "'..arg1..'" scenario!')
+	LootRes:AnnounceSR(arg1)
+end
+
+function LootRes:SetAnnounceOption(cmd)
+	local W = string.split(cmd, ' ')
+	if string.len(W[2]) == 0 then
+		LootRes:Print('No value provided. Please write 1 or 0 as parametr.')
+		return
+	end
+	local Num = tonumber(W[2])
+	if Num == 0 then
+		LootRes.db.profile.announce_flag = Num
+		LootRes:Print("There will be no announce for SR in the raid chat.")
+	elseif Num == 1 then
+		LootRes.db.profile.announce_flag = Num
+		LootRes:Print('SR list will be announced when someone type: "[ItemLink] SR" in the raid chat.')
+	elseif W[2] == '+' then
+		LootRes.db.profile.roll_formula_flag = 1-LootRes.db.profile.roll_formula_flag
+		if LootRes.db.profile.roll_formula_flag == 1 then
+			LootRes:Print('SR list will be announced with formula according to Rank of the player.')
+		else 
+			LootRes:Print('SR list will be not announced with formula according to Rank of the player.')
+		end
+	else
+		LootRes:Print("Provided wrong number: " .. Num .. ". Try 1 or 0 or +")
+	end
+end
+
+function LootRes:PrepareExcelTextbox()
+	if getglobal('LootResExcel'):IsShown() then
+		LootRes:HideWindow()
+		return
+	end
+		
+	if not LootRes.db.profile.loot_history or next(LootRes.db.profile.loot_history) == nil then
+		LootRes:Print("History of loot is empty.")
+		return
+	end
+	local historyData = {}
+	for playerName, lootData in next, LootRes.db.profile.loot_history do
+		if lootData and table.getn(lootData) > 0 then
+			for i, lootInfo in ipairs(lootData) do
+				local startPos, endPos, itemName = string.find(lootInfo.item, "%[(.-)%]")
+				table.insert(historyData, {playerName=playerName, itemName=itemName, timestamp=lootInfo.timestamp, time=lootInfo.time})
+				-- playerLoot = playerName .. "," .. itemName .. "," ..lootInfo.timestamp .. ' ' .. date("%d.%m.%Y") .. '\n'
+				-- lootHistoryMessage = lootHistoryMessage .. playerName .. "," .. itemName .. "," ..lootInfo.timestamp .. "\n"
+			end
+		end
+	end
+	table.sort(historyData, function(a, b)
+        return a.time < b.time
+	end)
+	local lootHistoryMessage = ""
+	for _, lootData in next, historyData do
+		-- playerLoot = playerName .. "," .. itemName .. "," ..lootInfo.timestamp .. ' ' .. date("%d.%m.%Y") .. '\n'
+		lootHistoryMessage = lootHistoryMessage .. LootRes:stringjoin(",", {lootData.playerName, lootData.itemName, lootData.timestamp}) .. "\n"
+	end
+	getglobal('LootResExcelTextBox'):SetText(lootHistoryMessage)
+	getglobal('LootResExcel'):Show()
+
+end
+
+function LootRes:ShowHistoryLog(cmd)
+	LootRes:Print('Showing loot history log:')
+	if not LootRes.db.profile.loot_history or next(LootRes.db.profile.loot_history) == nil then
+		LootRes:Print("History of loot is empty.")
+		return
+	end
+
+	local lootHistoryMessage = ""
+
+	for playerName, lootData in next, LootRes.db.profile.loot_history do
+		if lootData and table.getn(lootData) > 0 then
+			local playerLoot = playerName .. ": "
+
+			for i, lootInfo in ipairs(lootData) do
+				local itemLink = lootInfo.item
+
+				if string.sub(itemLink, -1) == "." then
+					itemLink = string.sub(itemLink, 1, -2)
+				end
+
+				playerLoot = playerLoot .. itemLink .. ' (' .. lootInfo.timestamp .. ')'
+
+				if i < table.getn(lootData) then
+					playerLoot = playerLoot .. ", "
+				end
+			end
+
+			lootHistoryMessage = lootHistoryMessage .. playerLoot .. " & "
+		end
+	end
+
+	lootHistoryMessage = string.sub(lootHistoryMessage, 1, -4)
+	
+	LootRes:Print(lootHistoryMessage)
+	if cmd == 'raidlog' then
+		LootRes:SendChatSplitMessage(lootHistoryMessage, "RAID")
+	end
+end
+
+function LootRes:GetGuildInfo()
+	GUILD_TABLE = {}
+	for i=0,10000 do
+		name, rankName, rankIndex, level, class, zone, note, 
+		officernote, online, status, classFileName, 
+		achievementPoints, achievementRank, isMobile, isSoREligible, standingID = GetGuildRosterInfo(i)
+		if name then
+			if rankIndex == 0 or rankIndex == 1 or rankIndex == 2 then
+				rank = 4
+			elseif rankIndex == 3 then
+				rank = 3
+			elseif rankIndex == 4 then
+				rank = 2
+			elseif rankIndex == 5 or rankIndex == 6 or rankIndex == 7 or rankIndex == 8 or rankIndex == 9 then
+				rank = 1
+			end
+			table.insert(GUILD_TABLE, LootRes:stringjoin(",", {name, class, rankName}))
+		end
+	end
+	LootRes:Print('Total players loaded in GUILD_TABLE: '..table.getn(GUILD_TABLE)) 
+end
+
+function LootRes:ViewSRForPlayer(cmd)
+	local W = string.split(cmd, ' ')
+	local player = W[2]
+	
+	if LootRes.db.profile.reserves[player] then
+		local reservedItems = LootRes.db.profile.reserves[player].items
+		local comment = LootRes.db.profile.reserves[player].comment
+		if table.getn(reservedItems) > 0 then
+			LootRes:Print(player .. ' reserved: ' .. table.concat(reservedItems, ', ') .. (comment and ' (' .. comment .. ')' or ''))
+		else
+			LootRes:Print(player .. ' has no reserved items.')
+		end
+	else
+		LootRes:Print(player .. ' has no reserved items.')
+	end
+	
+	if not LootRes.db.profile.loot_history[player] then
+		LootRes:Print(player .. ' - nothing looted.')
+	else
+		local lootHistory = {}
+		for _, lootEntry in ipairs(LootRes.db.profile.loot_history[player]) do
+			table.insert(lootHistory, lootEntry.item .. ' ('.. lootEntry.timestamp .. ')')
+		end
+		LootRes:Print(player .. ' - looted: ' .. table.concat(lootHistory, ', '))
+	end
+end
+
+function LootRes:ClearSRForPlayer(cmd)
+	local W = string.split(cmd, ' ')
+	local player = W[2]
+	LootRes.db.profile.loot_history[player] = nil
+	LootRes:Print('Cleared ' .. player .. ' ')
+end
+
+function LootRes:Print(a)
+    if a == nil then
+        DEFAULT_CHAT_FRAME:AddMessage('|cff69ccf0[LR]|cff0070de:' .. time() .. '|cffffffff attempt to print a nil value.')
+        return false
+    end
+    DEFAULT_CHAT_FRAME:AddMessage("|cff69ccf0[LR] |cffffffff" .. a)
+end
+
+function LootRes:modifyItemLink(itemLink, itemType)
     local modifier = ""
     if itemType == 'INVTYPE_WEAPONMAINHAND' then
         modifier = " (MH)"
@@ -313,7 +384,7 @@ function LootRes:AnnounceSR(arg1)
 	local itemPattern = "|c.-|h%[.-%]|h|r"
 	local UniqueOccurrenceSR = strfind(lowerArg, itemPattern .. "sr") or strfind(lowerArg, "sr" .. itemPattern)
 	
-	if firstOccurenceSR == nil and not containsCP(arg1) and UniqueOccurrenceSR == nil then
+	if firstOccurenceSR == nil and not LootRes:containsCP(arg1) and UniqueOccurrenceSR == nil then
 		return
 	end
 
@@ -322,13 +393,13 @@ function LootRes:AnnounceSR(arg1)
 		return
 	end
 
-	if ANNOUNCE_FLAG == nil or ANNOUNCE_FLAG == 0 then
-		lrprint('Triggered, but LootRes announce feature not enabled, to enable that write "/lootres announce 1".')
+	if LootRes.db.profile.announce_flag == nil or LootRes.db.profile.announce_flag == 0 then
+		LootRes:Print('Triggered, but LootRes announce feature not enabled, to enable that write "/lootres announce 1".')
 		return
 	end
 	
-	if LOOTRES_RESERVES == nil or LootRes.countTableEntries(LOOTRES_RESERVES) == 0 then
-		lrprint('Triggered, but data isn\'t loaded into LootRes, please use "/lootres load" to load reserves.')
+	if LootRes.db.profile.reserves == nil or LootRes.countTableEntries(LootRes.db.profile.reserves) == 0 then
+		LootRes:Print('Triggered, but data isn\'t loaded into LootRes, please use "/lootres load" to load reserves.')
 		return
 	end 
 	local _, _, Color, Ltype, Id, Enchant, Gem1, Gem2, Gem3, Gem4, Suffix, Unique, LinkLvl, Name = string.find(itemLink, "|?c?f?f?(%x*)|?H?([^:]*):?(%d+):?(%d*):?(%d*):?(%d*):?(%d*):?(%d*):?(%-?%d*):?(%-?%d*):?(%d*):?(%d*):?(%-?%d*)|?h?%[?([^%[%]]*)%]?|?h?|?r?")
@@ -336,7 +407,7 @@ function LootRes:AnnounceSR(arg1)
 	
 	local modifiedItemLink = ''
 	if itemName and itemName == 'Warblade of the Hakkari' then
-		modifiedItemLink = modifyItemLink(itemLink, itemType)
+		modifiedItemLink = LootRes:modifyItemLink(itemLink, itemType)
 	else 
 		modifiedItemLink = itemLink
 	end 
@@ -349,7 +420,7 @@ function LootRes:AnnounceSR(arg1)
 		local guildName, guildRankName, guildRankIndex = GetGuildInfo('raid'..i)
 		if name then
 			local rank = 0
-			if guildName == 'CuHuu TpakTop' then
+			if guildName == LootRes.guildName then
 				if guildRankIndex == 0 or guildRankIndex == 1 or guildRankIndex == 2 then
 					rank = 4
 				elseif guildRankIndex == 3 then
@@ -367,7 +438,7 @@ function LootRes:AnnounceSR(arg1)
 	local actualPlayers = {}
 	local fakePlayers = {}
 	
-	for playerNameSR, playerData in next, LOOTRES_RESERVES do
+	for playerNameSR, playerData in next, LootRes.db.profile.reserves do
 		if playerData and playerData.items then
 			for _, playerItem in next, playerData.items do
 				local lowerItemName = string.lower(modifieditemName)
@@ -400,9 +471,11 @@ function LootRes:AnnounceSR(arg1)
 
 	local actualPlayerList = ""
 	for _, player in ipairs(actualPlayers) do
-		player.name = player.name .. LootRes.arabicToRoman(player.rank)
+		if LootRes.db.profile.rank_flag == 1 then
+			player.name = player.name .. LootRes.IntRank2StrRank(player.rank)
+		end
 		if player.priority and player.priority > 0 then
-			if not ROLL_FORMULA_FLAG then
+			if not LootRes.db.profile.roll_formula_flag == 1 then
 				actualPlayerList = actualPlayerList .. player.name .. " (+" .. player.priority .. "), "
 			else
 				formula = ''
@@ -429,7 +502,9 @@ function LootRes:AnnounceSR(arg1)
 	
 	local fakePlayerList = ""
 	for _, player in ipairs(fakePlayers) do
-		player.name = player.name .. LootRes.arabicToRoman(player.rank)
+		if LootRes.db.profile.rank_flag == 1 then
+			player.name = player.name .. LootRes.IntRank2StrRank(player.rank)
+		end
 		if player.priority and player.priority > 0 then
 			fakePlayerList = fakePlayerList .. player.name .. " (+" .. player.priority .. "), "
 		else
@@ -452,9 +527,9 @@ function LootRes:AnnounceSR(arg1)
 		msg = "No one has SR'ed that item: " .. modifiedItemLink
 	end
 	
-	lrprint("Announced SR's for " .. modifiedItemLink .. '. If you want to cancel this feature write /lootres announce 0')
-	SendChatSplitMessage(msg, "RAID")
-	lastAnnounce = time()
+	LootRes:Print("Announced SR's for " .. modifiedItemLink .. '. If you want to cancel this feature write /lootres announce 0')
+	LootRes:SendChatSplitMessage(msg, "RAID")
+	LootRes.lastAnnounce= time()
 end
 
 function LootRes:SaveLootLog(arg)
@@ -489,7 +564,7 @@ function LootRes:SaveLootLog(arg)
 	
 		local isSR = false
 
-		for reservePlayerName, playerData in next, LOOTRES_RESERVES do
+		for reservePlayerName, playerData in next, LootRes.db.profile.reserves do
 			for _, reservedItem in next, playerData.items do
 				if string.lower(itemName) == string.lower(reservedItem) and string.lower(playerName) == string.lower(reservePlayerName) then
 					isSR = true
@@ -500,22 +575,23 @@ function LootRes:SaveLootLog(arg)
 		end
 
 		if isSR then
-			if not LOOT_RES_LOOT_HISTORY[playerName] then
-				LOOT_RES_LOOT_HISTORY[playerName] = {}
+			if not LootRes.db.profile.loot_history[playerName] then
+				LootRes.db.profile.loot_history[playerName] = {}
 			end
 			
-			table.insert(LOOT_RES_LOOT_HISTORY[playerName], {
+			table.insert(LootRes.db.profile.loot_history[playerName], {
 				item = itemLink,
-				timestamp = date("%H:%M:%S")
+				timestamp = date("%H:%M:%S %d/%m/%y"),
+				time = time()
 			})
 
-			lrprint(playerName .. " got reserved item: " .. itemLink)
+			LootRes:Print(playerName .. " got reserved item: " .. itemLink)
 		end
 	end
 end
 
 	
-function containsCP(msg)
+function LootRes:containsCP(msg)
     for i = 1, string.len(msg) - 3 do
         local firstByte = string.byte(msg, i)
         local secondByte = string.byte(msg, i + 1)
@@ -542,7 +618,7 @@ function containsCP(msg)
     return false
 end
 
-function SendChatSplitMessage(msg, chatType, n, delimeter)
+function LootRes:SendChatSplitMessage(msg, chatType, n, delimeter)
     local maxMessageLength = n or 255
     local parts = {}
 
@@ -585,32 +661,12 @@ function SendChatSplitMessage(msg, chatType, n, delimeter)
     end
 end
 
-function LootRes:ScanUnit(target)
-    if not UnitIsPlayer(target) then
-        return nil
-    end
-    return 0, 0, 0, 0
-end
-
-local LootResHookSetBagItem = GameTooltip.SetBagItem
-function GameTooltip.SetBagItem(self, container, slot)
-    GameTooltip.itemLink = GetContainerItemLink(container, slot)
-    _, GameTooltip.itemCount = GetContainerItemInfo(container, slot)
-    return LootResHookSetBagItem(self, container, slot)
-end
-
-local LootResHookSetLootItem = GameTooltip.SetLootItem
-function GameTooltip.SetLootItem(self, slot)
-    GameTooltip.itemLink = GetLootSlotLink(slot)
-    LootResHookSetLootItem(self, slot)
-end
-
-
-function LootResHideWindow()
+function LootRes:HideWindow()
+	getglobal('LootResLoadFromText'):Hide()
 	getglobal('LootResExcel'):Hide()
 end
 
-function LootResLoadText()
+function LootRes:LoadText()
     local data = getglobal('LootResLoadFromTextTextBox'):GetText()
 
     getglobal('LootResLoadFromText'):Hide()
@@ -625,7 +681,7 @@ function LootResLoadText()
     data = LootResReplace(data, "Guide:", "Guide*dd*")
 	data = LootResReplace(data, "Schematic:", "Schematic*dd*")
 
-    LOOTRES_RESERVES = {}
+    LootRes.db.profile.reserves = {}
 
     data = LootRes.explode(data, "[")
 
@@ -658,31 +714,30 @@ function LootResLoadText()
 				end
             end
 			if player and item then
-				if not LOOTRES_RESERVES[player] then
-					LOOTRES_RESERVES[player] = { items = {}, comment = comment }
+				if not LootRes.db.profile.reserves[player] then
+					LootRes.db.profile.reserves[player] = { items = {}, comment = comment }
 				end
 				item = LootRes.trim(item)
-				table.insert(LOOTRES_RESERVES[player].items, item)
+				table.insert(LootRes.db.profile.reserves[player].items, item)
 			end
         end
     end
 
-    lrprint("Loaded reserves:")
+    LootRes:Print("Loaded reserves:")
 
-    for player, data in pairs(LOOTRES_RESERVES) do
+    for player, data in pairs(LootRes.db.profile.reserves) do
 		if data.comment then
-			lrprint("Player: " .. player .. " | items: " .. table.concat(data.items, ", ") .. " | comment: " .. data.comment)
+			LootRes:Print("Player: " .. player .. " | items: " .. table.concat(data.items, ", ") .. " | comment: " .. data.comment)
 		else
-			lrprint("Player: " .. player .. " | items: " .. table.concat(data.items, ", "))
+			LootRes:Print("Player: " .. player .. " | items: " .. table.concat(data.items, ", "))
 		end
 
     end
 end
 
 
-
 function LootRes:PrintReserves()
-    for playerName, reserveData in next, LOOTRES_RESERVES do
+    for playerName, reserveData in next, LootRes.db.profile.reserves do
         if reserveData.items then
             local itemList = ""
             for _, item in ipairs(reserveData.items) do
@@ -696,7 +751,7 @@ function LootRes:PrintReserves()
             if reserveData.comment and string.sub(reserveData.comment, 1, 1) == "+" then
                 comment = " (" .. reserveData.comment .. ")"
             end
-            lrprint(playerName .. ": " .. itemList .. comment)
+            LootRes:Print(playerName .. ": " .. itemList .. comment)
         end
     end
 end
@@ -705,14 +760,14 @@ function LootRes:PrintRaidReserves()
 	local raidMSG = ''
 	local players = {}
 
-	for playerName, _ in pairs(LOOTRES_RESERVES) do
+	for playerName, _ in pairs(LootRes.db.profile.reserves) do
 		table.insert(players, playerName)
 	end
 	
 	table.sort(players)
 
 	for _, playerName in ipairs(players) do
-		local reserveData = LOOTRES_RESERVES[playerName]
+		local reserveData = LootRes.db.profile.reserves[playerName]
 		if reserveData.items then
 			local itemList = ""
 			for _, item in ipairs(reserveData.items) do
@@ -737,37 +792,35 @@ function LootRes:PrintRaidReserves()
 
 	if string.len(raidMSG) > 0 then
 		raidMSG = string.sub(raidMSG, 1, -5)
-		SendChatSplitMessage(raidMSG, "RAID", 170, '||')
+		LootRes:SendChatSplitMessage(raidMSG, "RAID", 170, '||')
 	else
-		lrprint('No provided data to print, use </lootres load> to insert data in addon.')
+		LootRes:Print('No provided data to print, use </lootRes load> to insert data in addon.')
 	end
 end
 
 
 function LootRes:PrintRaidReserves2()
-    local playersInRaid = {}
-    for i = 1, MAX_RAID_MEMBERS do
-        local name = GetRaidRosterInfo(i)
-        local guildName, guildRankName, guildRankIndex = GetGuildInfo('raid'..i)
-        if name then
-            local rank = 0
-            if guildName == 'CuHuu TpakTop' then
-                if guildRankIndex == 0 or guildRankIndex == 1 or guildRankIndex == 2 then
-                    rank = 4
-                elseif guildRankIndex == 3 then
-                    rank = 3
-                elseif guildRankIndex == 4 then
-                    rank = 2
-                elseif guildRankIndex >= 5 and guildRankIndex <= 9 then
-                    rank = 1
-                end
-            end
-            playersInRaid[string.lower(name)] = rank
-        end
-    end
+	local guildTable = {}
+	for i=0,1500 do
+		name, rankName, rankIndex, level, class, zone, note, 
+		officernote, online, status, classFileName, 
+		achievementPoints, achievementRank, isMobile, isSoREligible, standingID = GetGuildRosterInfo(i)
+		if name then
+			if rankIndex == 0 or rankIndex == 1 or rankIndex == 2 then
+				rank = 4
+			elseif rankIndex == 3 then
+				rank = 3
+			elseif rankIndex == 4 then
+				rank = 2
+			elseif rankIndex == 5 or rankIndex == 6 or rankIndex == 7 or rankIndex == 8 or rankIndex == 9 then
+				rank = 1
+			end
+			guildTable[string.lower(name)] = rank
+		end
+	end
 
     local itemsToPlayers = {}
-    for playerName, reserveData in pairs(LOOTRES_RESERVES) do
+    for playerName, reserveData in pairs(LootRes.db.profile.reserves) do
         if reserveData.items then
             for _, item in ipairs(reserveData.items) do
                 if not itemsToPlayers[item] then
@@ -775,7 +828,7 @@ function LootRes:PrintRaidReserves2()
                 end
                 table.insert(itemsToPlayers[item], {
                     name = playerName,
-                    rank = playersInRaid[string.lower(playerName)] or 0,
+                    rank = guildTable[string.lower(playerName)] or 0,
                     priority = tonumber(string.sub(reserveData.comment or "", 2)) or 0
                 })
             end
@@ -800,7 +853,12 @@ function LootRes:PrintRaidReserves2()
             if playerData.priority > 0 then
                 comment = " (+" .. playerData.priority .. ")"
             end
-			playerName = playerData.name .. LootRes.arabicToRoman(playerData.rank)
+			if LootRes.db.profile.rank_flag == 1 then
+				playerName = playerData.name .. LootRes.IntRank2StrRank(playerData.rank)
+			else
+				playerName = playerData.name
+			end
+			
             playerList = playerList .. playerName .. comment .. ", "
         end
 
@@ -813,15 +871,102 @@ function LootRes:PrintRaidReserves2()
 
     if string.len(raidMSG) > 0 then
         raidMSG = string.sub(raidMSG, 1, -5)
-        SendChatSplitMessage(raidMSG, "RAID", 170, '||')
+        LootRes:SendChatSplitMessage(raidMSG, "RAID", 170, '||')
     else
-        lrprint('No provided data to print, use </lootres load> to insert data in addon.')
+        LootRes:Print('No provided data to print, use </lootres load> to insert data in addon.')
+    end
+end
+
+function LootRes:PrintRaidReserves3()
+	local guildTable = {}
+	for i=0,1500 do
+		name, rankName, rankIndex, level, class, zone, note, 
+		officernote, online, status, classFileName, 
+		achievementPoints, achievementRank, isMobile, isSoREligible, standingID = GetGuildRosterInfo(i)
+		if name then
+			if rankIndex == 0 or rankIndex == 1 or rankIndex == 2 then
+				rank = 4
+			elseif rankIndex == 3 then
+				rank = 3
+			elseif rankIndex == 4 then
+				rank = 2
+			elseif rankIndex == 5 or rankIndex == 6 or rankIndex == 7 or rankIndex == 8 or rankIndex == 9 then
+				rank = 1
+			end
+			guildTable[string.lower(name)] = rank
+		end
+	end
+	
+    local playersInRaid = {}
+    for i = 1, MAX_RAID_MEMBERS do
+        local name = GetRaidRosterInfo(i)
+		if name then
+			name = string.lower(name)
+			playersInRaid[name] = guildTable[name]
+		end
+    end
+
+    local itemsToPlayers = {}
+    for playerName, reserveData in pairs(LootRes.db.profile.reserves) do
+        if reserveData.items and playersInRaid[string.lower(playerName)] then
+            for _, item in ipairs(reserveData.items) do
+                if not itemsToPlayers[item] then
+                    itemsToPlayers[item] = {}
+                end
+					table.insert(itemsToPlayers[item], {
+						name = playerName,
+						rank = guildTable[string.lower(playerName)] or 0,
+						priority = tonumber(string.sub(reserveData.comment or "", 2)) or 0
+					})
+            end
+        end
+    end
+
+    for _, players in pairs(itemsToPlayers) do
+        table.sort(players, function(a, b)
+            if a.rank ~= b.rank then
+                return a.rank > b.rank
+            else
+                return a.priority > b.priority
+            end
+        end)
+    end
+
+    local raidMSG = ""
+    for item, players in pairs(itemsToPlayers) do
+        local playerList = ""
+        for _, playerData in ipairs(players) do
+            local comment = ""
+            if playerData.priority > 0 then
+                comment = " (+" .. playerData.priority .. ")"
+            end
+			if LootRes.db.profile.rank_flag == 1 then
+				playerName = playerData.name .. LootRes.IntRank2StrRank(playerData.rank)
+			else
+				playerName = playerData.name
+			end
+			
+            playerList = playerList .. playerName .. comment .. ", "
+        end
+
+        if string.len(playerList) > 0 then
+            playerList = string.sub(playerList, 1, -3)
+        end
+
+        raidMSG = raidMSG .. "[" .. item .. "]: " .. playerList .. " || "
+    end
+
+    if string.len(raidMSG) > 0 then
+        raidMSG = string.sub(raidMSG, 1, -5)
+        LootRes:SendChatSplitMessage(raidMSG, "RAID", 170, '||')
+    else
+        LootRes:Print('No provided data to print, use </lootres load> to insert data in addon.')
     end
 end
 
 
 function LootRes:SearchPlayerOrItem(search)
-    lrprint("*" .. LootResReplace(search, "search ", "") .. "*")
+    LootRes:Print("*" .. LootResReplace(search, "search ", "") .. "*")
 end
 function LootResReplace(text, search, replace)
     if search == replace then
@@ -852,49 +997,36 @@ function string:split(delimiter)
     return result
 end
 
+function LootRes:stringjoin(delimiter, list)
+    if type(list) ~= "table" then
+        error("Second argument must be a table")
+    end
+
+    local result = {}
+    for _, value in ipairs(list) do
+        table.insert(result, tostring(value))
+    end
+
+    return table.concat(result, delimiter)
+end
 
 function LootRes:CheckReserves()
-    for playerName, reserveData in next, LOOTRES_RESERVES do
+    for playerName, reserveData in next, LootRes.db.profile.reserves do
         if reserveData.items then
             for _, item in ipairs(reserveData.items) do
-                lrprint("Checking item for " .. playerName .. ": " .. item)
+                LootRes:Print("Checking item for " .. playerName .. ": " .. item)
                 
                 local itemName = GetItemInfo(item)
 		
                 if itemName then
-                    lrprint("Item name: " .. itemName)
+                    LootRes:Print("Item name: " .. itemName)
                 else
-                    lrprint("Item not found for: " .. item)
+                    LootRes:Print("Item not found for: " .. item)
                 end
             end
         end
     end
 end
-
-function pairsByKeys(t, f)
-    local a = {}
-    for n in pairs(t) do
-        table.insert(a, n)
-    end
-    table.sort(a, function(a, b)
-        return a < b
-    end)
-    local i = 0 -- iterator variable
-    local iter = function()
-        -- iterator function
-        i = i + 1
-        if a[i] == nil then
-            return nil
-        else
-            return a[i], t[a[i]]
-        end
-    end
-    return iter
-end
-
-LootRes.RESERVES = {
-    ['Er'] = 'test'
-}
 
 
 function LootRes.trim(s)
@@ -926,7 +1058,7 @@ function LootRes.countTableEntries(tbl)
 end
 
 
-function LootRes.arabicToRoman(num)
+function LootRes.IntRank2StrRank(num)
     local romanNumerals = {
 		[0] = "",
         [1] = " [I]",

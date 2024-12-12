@@ -3,6 +3,26 @@
 ## Author: Xerron/Er/Zakha
 ## Version: 0.3
 ## Notes: Addon to help with loot reservation system
-## SavedVariables: LOOTRES_RESERVES, LOOT_HISTORY, TIME_TO_VOTE, TIME_TO_LINK, LOOT_RES_LOOT_HISTORY, ANNOUNCE_FLAG, GUILD_TABLE, ROLL_FORMULA_FLAG
-ChatThrottleLib\ChatThrottleLib.lua
+## SavedVariables: LootResDB, GUILD_TABLE
+## X-Embeds: Ace2, FuBarPlugin-2.0, CompostLib, DewDropLib, TabletLib
+
+libs\ChatThrottleLib\ChatThrottleLib.lua
+libs\AceLibrary\AceLibrary.lua
+
+libs\AceOO-2.0\AceOO-2.0.lua
+libs\AceAddon-2.0\AceAddon-2.0.lua
+libs\AceConsole-2.0\AceConsole-2.0.lua
+libs\AceHook-2.1\AceHook-2.1.lua
+libs\AceDB-2.0\AceDB-2.0.lua
+libs\AceDebug-2.0\AceDebug-2.0.lua
+libs\AceEvent-2.0\AceEvent-2.0.lua
+libs\AceLocale-2.2\AceLocale-2.2.lua
+libs\AceModuleCore-2.0\AceModuleCore-2.0.lua
+
+libs\Dewdrop\Dewdrop-2.0.lua
+libs\Tablet\Tablet-2.0.lua
+libs\FuBarPlugin\FuBarPlugin-2.0.lua
+
+LootRes.lua
+LootResOptions.lua
 LootRes.xml

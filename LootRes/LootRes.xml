@@ -1,10 +1,8 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://www.blizzard.com/wow/ui/..\FrameXML\UI.xsd">
-    <Script file="LootRes.lua"/>
 
     <Frame name="LootResLoadFromText" hidden="true" toplevel="true"
            parent="UIParent" movable="true" enableMouse="true">
-		   
 		   
         <Size>
             <AbsDimension x="450" y="470"/>
@@ -53,7 +51,7 @@
                 </Anchors>
                 <Scripts>
                     <OnClick>
-                        LootResLoadText()
+                        LootRes:LoadText()
                     </OnClick>
 
                 </Scripts>
@@ -150,7 +148,7 @@
                 </Anchors>
                 <Scripts>
                     <OnClick>
-                        LootResHideWindow()
+                        LootRes:HideWindow()
                     </OnClick>
 
                 </Scripts>
