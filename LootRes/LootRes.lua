@@ -157,7 +157,7 @@ function LootRes:InsertSRData()
 		LootRes:HideWindow()
 		return
 	end
-	getglobal('LootResLoadFromTextTextBox'):SetText("")
+	-- getglobal('LootResLoadFromTextTextBox'):SetText("")
 	getglobal('LootResLoadFromText'):Show()
 end
 
