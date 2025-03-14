@@ -194,7 +194,7 @@ function LootRes:TestAnnounceSR()
 	local itemPattrern = ''
 	for item, _ in next, items do
 		if rand == j then
-			ritem = '|cff8fce00|Hitem:19019:::::::::::::::|h['..item..']|h|r'
+			ritem = '|cff8fce00|Hitem:19019|h['..item..']|h|r'
 			break
 		end
 		j = j + 1
@@ -305,7 +305,7 @@ end
 function LootRes:GetGuildInfo()
 	GUILD_TABLE = {}
 	for i=0,10000 do
-		name, rankName, rankIndex, level, class, zone, note, 
+		local name, rankName, rankIndex, level, class, zone, note, 
 		officernote, online, status, classFileName, 
 		achievementPoints, achievementRank, isMobile, isSoREligible, standingID = GetGuildRosterInfo(i)
 		if name then
@@ -318,7 +318,12 @@ function LootRes:GetGuildInfo()
 			elseif rankIndex == 5 or rankIndex == 6 or rankIndex == 7 or rankIndex == 8 or rankIndex == 9 then
 				rank = 1
 			end
-			table.insert(GUILD_TABLE, LootRes:stringjoin(",", {name, class, rankName}))
+			local msSpec, osSpec = "N/A", "N/A"
+			if string.find(note, '|') then
+				osSpec = string.strip(string.split(note, '|')[3])
+				msSpec = string.strip(string.split(note, '|')[1])
+			end
+			table.insert(GUILD_TABLE, LootRes:stringjoin(",", {name, class, rankName, msSpec, osSpec}))
 		end
 	end
 	LootRes:Print('Total players loaded in GUILD_TABLE: '..table.getn(GUILD_TABLE)) 
@@ -529,7 +534,7 @@ function LootRes:AnnounceSR(arg1)
 	
 	LootRes:Print("Announced SR's for " .. modifiedItemLink .. '. If you want to cancel this feature write /lootres announce 0')
 	LootRes:SendChatSplitMessage(msg, "RAID")
-	LootRes.lastAnnounce= time()
+	LootRes.lastAnnounce = time()
 end
 
 function LootRes:SaveLootLog(arg)
@@ -792,7 +797,7 @@ function LootRes:PrintRaidReserves()
 
 	if string.len(raidMSG) > 0 then
 		raidMSG = string.sub(raidMSG, 1, -5)
-		LootRes:SendChatSplitMessage(raidMSG, "RAID", 170, '||')
+		LootRes:SendChatSplitMessage(raidMSG, "RAID", 220, '||')
 	else
 		LootRes:Print('No provided data to print, use </lootRes load> to insert data in addon.')
 	end
@@ -871,7 +876,7 @@ function LootRes:PrintRaidReserves2()
 
     if string.len(raidMSG) > 0 then
         raidMSG = string.sub(raidMSG, 1, -5)
-        LootRes:SendChatSplitMessage(raidMSG, "RAID", 170, '||')
+        LootRes:SendChatSplitMessage(raidMSG, "RAID", 220, '||')
     else
         LootRes:Print('No provided data to print, use </lootres load> to insert data in addon.')
     end
@@ -958,7 +963,7 @@ function LootRes:PrintRaidReserves3()
 
     if string.len(raidMSG) > 0 then
         raidMSG = string.sub(raidMSG, 1, -5)
-        LootRes:SendChatSplitMessage(raidMSG, "RAID", 170, '||')
+        LootRes:SendChatSplitMessage(raidMSG, "RAID", 220, '||')
     else
         LootRes:Print('No provided data to print, use </lootres load> to insert data in addon.')
     end
@@ -1059,18 +1064,34 @@ end
 
 
 function LootRes.IntRank2StrRank(num)
-    local romanNumerals = {
-		[0] = "",
-        [1] = " [I]",
-        [2] = " [II]",
-        [3] = " [III]",
-        [4] = " [IV]",
-        [5] = " [V]",
-        [6] = " [VI]",
-        [7] = " [VII]",
-        [8] = " [VIII]",
-        [9] = " [IX]"
-    }
+	local romanNumerals = {}
+	if LootRes.db.profile.colorize_rank == 1 then
+		romanNumerals = {
+			[0] = "",
+			[1] = " |cff1eff00[I]|r",
+			[2] = " |cff007fff[II]|r",
+			[3] = " |cffa83fee[III]|r",
+			[4] = " |cffff0303[IV]|r",
+			[5] = " [V]",
+			[6] = " [VI]",
+			[7] = " [VII]",
+			[8] = " [VIII]",
+			[9] = " [IX]",
+		}
+	else
+		romanNumerals = {
+			[0] = "",
+			[1] = " [I]",
+			[2] = " [II]",
+			[3] = " [III]",
+			[4] = " [IV]",
+			[5] = " [V]",
+			[6] = " [VI]",
+			[7] = " [VII]",
+			[8] = " [VIII]",
+			[9] = " [IX]",
+		}
+	end
     return romanNumerals[num] or ''
 end
 

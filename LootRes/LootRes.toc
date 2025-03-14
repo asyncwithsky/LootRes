@@ -1,5 +1,5 @@
 ## Interface: 11200
-## Title: Loot Res
+## Title: LootRes
 ## Author: Xerron/Er/Zakha
 ## Version: 0.3
 ## Notes: Addon to help with loot reservation system

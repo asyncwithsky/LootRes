@@ -5,6 +5,7 @@ LootRes:RegisterDefaults("profile", {
 	announce_flag = 1,
 	roll_formula_flag = 1,
 	rank_flag = 1,
+	colorize_rank = 1,
 })
 
 local announceOptions = {
@@ -27,7 +28,7 @@ local announceOptions = {
 	["rankformula"] = {
 		type = "toggle",
 		name = "Display Formula",
-		desc = "Enable feature to announce SR with formulas for bonuses like /roll 69-169",
+		desc = "Enable feature to announce SR with formulas for bonuses like /roll 70-169",
 		order = 2,
 		get = function()
 			return LootRes.db.profile.roll_formula_flag == 1
@@ -37,6 +38,22 @@ local announceOptions = {
 				LootRes.db.profile.roll_formula_flag = 1
 			else
 				LootRes.db.profile.roll_formula_flag = 0
+			end
+		end,
+	},
+	["colorizeranks"] = {
+		type = "toggle",
+		name = "Display Color for Ranks",
+		desc = "Enable feature to display ranks in the raid chat",
+		order = 2,
+		get = function()
+			return LootRes.db.profile.colorize_rank == 1
+		end,
+		set = function(v)
+			if v == true then
+				LootRes.db.profile.colorize_rank = 1
+			else
+				LootRes.db.profile.colorize_rank = 0
 			end
 		end,
 	},
